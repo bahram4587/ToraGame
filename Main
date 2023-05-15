@@ -1,0 +1,166 @@
+import random
+import tkinter as tk
+
+# Define the ranks and suits
+ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+suits = ['Clubs', 'Spades', 'Hearts', 'Diamonds']
+
+# Create a deck of cards
+deck = [(rank, suit) for rank in ranks for suit in suits]
+
+# Define the card removal rules for each game mode
+game_modes = {
+    '3': [('2', 'Clubs')],
+    '4': [],
+    '5': [('2', 'Clubs'), ('2', 'Diamonds')]
+}
+
+# Define the scoring values for each card
+scoring_values = {
+    ('Hearts', '*'): -1,
+    ('Diamonds', '10'): -3,
+    ('Clubs', 'J'): -5,
+    ('Spades', 'Q'): -9
+}
+
+class ToraApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Tora")
+        self.num_players = None
+        self.players = None
+        self.current_round = 0
+        self.current_dealer = None
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.title_label = tk.Label(self.root, text="Tora", font=("Arial", 16, "bold"))
+        self.title_label.pack(pady=10)
+
+        self.player_select_label = tk.Label(self.root, text="Select the number of players:")
+        self.player_select_label.pack()
+
+        self.num_players_entry = tk.Entry(self.root, width=10)
+        self.num_players_entry.pack()
+
+        self.start_button = tk.Button(self.root, text="Start Game", command=self.start_game)
+        self.start_button.pack(pady=10)
+
+        self.message_label = tk.Label(self.root, text="", font=("Arial", 12))
+        self.message_label.pack(pady=10)
+
+    def start_game(self):
+        num_players = self.num_players_entry.get()
+        if num_players not in ['3', '4', '5']:
+            self.message_label.config(text="Invalid number of players. Please enter 3, 4, or 5.")
+            return
+
+        self.num_players = int(num_players)
+        self.players = deal_cards(self.num_players)
+        self.current_dealer = random.randint(0, self.num_players - 1)
+
+        self.start_button.config(state=tk.DISABLED)
+        self.num_players_entry.config(state=tk.DISABLED)
+        self.display_round()
+
+    def display_round(self):
+        self.current_round += 1
+        self.message_label.config(text=f"Round {self.current_round}\nDealer: Player {self.current_dealer + 1}")
+        self.clear_cards()
+
+        for i in range(self.num_players):
+            player_cards = " ".join([f"{card[0]} of {card[1]}" for card in self.players[i]])
+            player_label = tk.Label(self.root, text=f"Player {i + 1} Cards: {player_cards}")
+            player_label.pack()
+
+        play_round_button = tk.Button(self.root, text="Play Round", command=self.play_round)
+        play_round_button.pack(pady=10)
+
+    def play_round(self):
+        round_scores, starting_player = self.play_round(self.players, (self.current_dealer + 1) % self.num_players)
+
+        round_scores_label = tk.Label(self.root, text="Scores for this round:")
+        round_scores_label.pack()
+        
+        for i in  range(self.num_players):
+            player_score_label = tk.Label(self.root, text=f"Player {i + 1}: {round_scores[i]}")
+            player_score_label.pack()
+
+        self.current_dealer = starting_player
+
+        if any(score <= -139 for score in round_scores):
+            game_winner = round_scores.index(min(round_scores))
+            self.message_label.config(text=f"Player {game_winner + 1} wins the game!")
+            self.reset_game()
+        else:
+            self.next_round_button = tk.Button(self.root, text="Next Round", command=self.display_round)
+            self.next_round_button.pack(pady=10)
+
+    def reset_game(self):
+        self.start_button.config(state=tk.NORMAL)
+        self.num_players_entry.config(state=tk.NORMAL)
+        self.current_round = 0
+        self.current_dealer = None
+        self.players = None
+
+    def clear_cards(self):
+        for widget in self.root.winfo_children():
+            if isinstance(widget, tk.Label) and "Cards:" in widget.cget("text"):
+                widget.destroy()
+
+    def play_round(self, players, starting_player):
+        round_scores = [0] * len(players)
+        current_player = starting_player
+
+        for _ in range(len(players[0])):
+            played_cards = [player.pop(0) for player in players]
+            winning_card_index = self.get_winning_card_index(played_cards)
+            round_scores[winning_card_index] -= 30
+            current_player = (starting_player + winning_card_index) % len(players)
+
+            players[current_player].extend(played_cards)
+
+        return round_scores, current_player
+
+    def get_winning_card_index(self, played_cards):
+        max_score = float('-inf')
+        winning_card_index = 0
+
+        for i, card in enumerate(played_cards):
+            score = calculate_score([card])
+            if score > max_score:
+                max_score = score
+                winning_card_index = i
+
+        return winning_card_index
+
+
+def deal_cards(num_players):
+    random.shuffle(deck)
+    removed_cards = game_modes[str(num_players)]
+    remaining_deck = [card for card in deck if card not in removed_cards]
+    players = [[] for _ in range(num_players)]
+
+    while remaining_deck:
+        for player in players:
+            player.append(remaining_deck.pop())
+
+    return players
+
+
+def calculate_score(cards):
+    score = 0
+    for card in cards:
+        if card in scoring_values:
+            score += scoring_values[card]
+    return score
+
+
+# Create the Tkinter application
+root = tk.Tk()
+tora_app = ToraApp(root)
+
+# Run the Tkinter event loop
+root.mainloop()
+
